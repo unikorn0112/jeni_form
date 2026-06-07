@@ -92,7 +92,6 @@
         function toggleShippingFields() {
             const method = document.getElementById('shippingMethod').value;
             const block = document.getElementById('shippingDetailBlock');
-            
             if (method === "宅配到府") {
                 block.style.display = 'block';
             } else {
@@ -122,9 +121,7 @@
                 const groupByCategory = {};
                 productData.forEach(prod => {
                     const catName = (prod.category || "精選系列").trim(); 
-                    if (!groupByCategory[catName]) {
-                        groupByCategory[catName] = [];
-                    }
+                    if (!groupByCategory[catName]) { groupByCategory[catName] = []; }
                     groupByCategory[catName].push(prod);
                 });
                 
@@ -176,23 +173,15 @@
             document.querySelectorAll('.quantity-input').forEach(input => {
                 subtotal += (parseInt(input.value) || 0) * (parseInt(input.getAttribute('data-price')) || 0);
             });
-            
             const shippingMethod = document.getElementById('shippingMethod').value;
             const shippingFee = (shippingMethod === "宅配到府" && subtotal > 0) ? 150 : 0;
-            
             document.getElementById('subtotalPrice').innerText = subtotal;
             document.getElementById('shippingFeeText').innerText = shippingFee;
             document.getElementById('totalPrice').innerText = subtotal + shippingFee;
         }
 
         let uID = "";
-        
-        // =============================================================
-        // 🎯 【📢 關鍵修改區：看門狗登入機制加強】
-        // 原先程式碼若沒登入，會直接執行下方的 fetchShopProducts()，
-        // 導致網頁在沒有拿到 LINE ID 的情況下就提前放行填單。
-        // 這裡加上嚴格的 else 回傳與 `liff.login()` 阻斷保護，沒拿身分證前不准放行！
-        // =============================================================
+
         async function initLIFF() {
             try {
                 await liff.init({ 
@@ -204,22 +193,36 @@
                     const profile = await liff.getProfile();
                     uID = profile.userId; 
                     document.getElementById('userName').value = profile.displayName;
-                    
-                    // 💡 【修正點 1】只有在「確定拿到 LINE ID」的情況下，才允許跑去載入商品開放下單！
                     await fetchShopProducts(); 
+
                 } else {
-                    // 💡 【修正點 2】如果因為快取或外部分享沒登入，強制觸發登入跳轉，防範 ID 丟失漏洞
                     liff.login();
                 }
+
             } catch (err) { 
-                console.error("LIFF 初始化致命錯誤:", err);
-                // 網頁降級容錯保護
+                console.error("LIFF 初始化失敗:", err);
+
+                // ⚠️ 【偵錯標記 A】
+                // LIFF init 失敗時會跑到這裡，uID 此時是空字串 ""
+                // 這是 LINE ID 收不到的最常見原因之一
+                // 正式上線前請把下面這行 alert 刪掉
+                alert("⚠️ LIFF 初始化失敗！\nLINE ID 無法取得\n錯誤：" + err);
+
+                // 降級保護：即使 LIFF 失敗也讓商品載入，但 userId 會是空的
                 await fetchShopProducts(); 
             }
         }
         initLIFF();
 
         document.getElementById('submitBtn').onclick = async function() {
+
+            // ✅ 【偵錯標記 B】
+            // 按下送出時，這個 alert 會告訴你 LINE ID 有沒有被抓到
+            // 如果顯示「LINE ID = 」後面是空的 → 問題在 LIFF 沒登入
+            // 如果顯示「LINE ID = U開頭一串字」→ LINE ID 正常，問題在 GAS
+            // 正式上線前請把下面這行 alert 刪掉
+            alert("【偵錯】LINE ID = " + (uID || "（空的！LIFF 沒拿到）"));
+
             const name = document.getElementById('userName').value;
             const phone = document.getElementById('userPhone').value;
             const shippingMethod = document.getElementById('shippingMethod').value;
@@ -244,9 +247,7 @@
             try {
                 const response = await fetch('https://script.google.com/macros/s/AKfycbw_EPUH4-FnKPxtLTZSh6mPh18ptD9pbEDH47tvWHcBIJ5v7Eaw99CHS7BSSMbDwvc/exec', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'text/plain' 
-                    },
+                    headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify({
                         formType: "shopOrder",
                         userId: uID, userName: name, phone: phone,
@@ -259,6 +260,7 @@
                 
                 alert('商品點單成功！\n\n系統已將訂購明細與匯款資訊發送至您的 LINE 聊天室。🙏');
                 liff.closeWindow();
+
             } catch (e) { 
                 alert('系統訊息：訂單處理完畢！請回到 LINE 聊天室確認明細。'); 
                 liff.closeWindow();
