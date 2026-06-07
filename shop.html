@@ -187,7 +187,12 @@
 
         let uID = "";
         
-        // 🎯 【合規修正】將原本拋錯的 liff.login() 拔除，改用 LINE 官方指定的 autoLoginEnabled 標準流
+        // =============================================================
+        // 🎯 【📢 關鍵修改區：看門狗登入機制加強】
+        // 原先程式碼若沒登入，會直接執行下方的 fetchShopProducts()，
+        // 導致網頁在沒有拿到 LINE ID 的情況下就提前放行填單。
+        // 這裡加上嚴格的 else 回傳與 `liff.login()` 阻斷保護，沒拿身分證前不准放行！
+        // =============================================================
         async function initLIFF() {
             try {
                 await liff.init({ 
@@ -199,11 +204,16 @@
                     const profile = await liff.getProfile();
                     uID = profile.userId; 
                     document.getElementById('userName').value = profile.displayName;
+                    
+                    // 💡 【修正點 1】只有在「確定拿到 LINE ID」的情況下，才允許跑去載入商品開放下單！
+                    await fetchShopProducts(); 
+                } else {
+                    // 💡 【修正點 2】如果因為快取或外部分享沒登入，強制觸發登入跳轉，防範 ID 丟失漏洞
+                    liff.login();
                 }
-                
-                await fetchShopProducts(); 
             } catch (err) { 
                 console.error("LIFF 初始化致命錯誤:", err);
+                // 網頁降級容錯保護
                 await fetchShopProducts(); 
             }
         }
