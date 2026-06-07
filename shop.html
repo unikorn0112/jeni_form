@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>漢草植物精華點單</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body { background-color: #f8f9fa; padding: 20px; font-family: "Microsoft JhengHei", sans-serif; }
+        .container { max-width: 500px; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin: auto; }
+        .btn-success { background-color: #00b900; border: none; font-weight: bold; margin-top: 20px; }
+        label { font-weight: bold; margin-top: 15px; }
+        .category-title { background-color: #f1e7de; color: #704e30; padding: 5px 10px; font-weight: bold; border-radius: 5px; margin-top: 20px; margin-bottom: 10px; }
+        .product-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed #eee; }
+        .product-info { flex-grow: 1; }
+        .product-name { font-weight: 500; color: #333; }
+        .product-price { color: #e4393c; font-weight: bold; font-size: 0.9em; }
+        .quantity-control { display: flex; align-items: center; }
+        .quantity-btn { width: 30px; height: 30px; border: 1px solid #ccc; background: #fff; border-radius: 5px; font-weight: bold; text-align: center; line-height: 28px; cursor: pointer; user-select: none; }
+        .quantity-btn:active { background: #eee; }
+        .quantity-input { width: 45px; text-align: center; border: none; font-weight: bold; font-size: 1.1em; background: transparent; }
+        .summary-box { background: #fff8f8; padding: 15px; border-radius: 8px; border: 1px solid #ffe3e3; margin-top: 20px; }
+        .summary-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .total-price { color: #e4393c; font-weight: bold; font-size: 1.3em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h4 class="text-center mb-4" style="color: #5c3d24; font-weight: bold;">漢草植物精華點單</h4>
+        
+        <div class="form-group">
+            <label>訂購人姓名</label>
+            <input type="text" id="userName" class="form-control" placeholder="請輸入姓名">
+        </div>
+        
+        <div class="form-group">
+            <label>聯絡電話</label>
+            <input type="tel" id="userPhone" class="form-control" placeholder="請輸入聯絡電話">
+        </div>
+
+        <div id="shopContainer">
+            <div class="text-center py-4 text-muted">正在為您載入最新商品項目...</div>
+        </div>
+
+        <div class="summary-box">
+            <div class="summary-row">
+                <span>商品小計：</span>
+                <span>NT$ <span id="subtotalPrice">0</span></span>
+            </div>
+            <div class="summary-row">
+                <span>配送運費：</span>
+                <span style="color: #28a745;">免運費</span>
+            </div>
+            <hr style="margin: 10px 0;">
+            <div class="summary-row font-weight-bold">
+                <span>總計金額：</span>
+                <span class="total-price">NT$ <span id="totalPrice">0</span></span>
+            </div>
+        </div>
+
+        <input type="hidden" id="payMethod" value="轉帳匯款">
+        <button id="submitBtn" class="btn btn-success btn-block" disabled>正在初始化商城...</button>
+    </div>
+
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script>
+        let productData = []; 
+        const gasUrl = 'https://script.google.com/macros/s/AKfycbw_EPUH4-FnKPxtLTZSh6mPh18ptD9pbEDH47tvWHcBIJ5v7Eaw99CHS7BSSMbDwvc/exec?type=shop';
+
+        async function fetchShopProducts() {
+            try {
+                const response = await fetch(gasUrl);
+                productData = await response.json();
+                const container = document.getElementById('shopContainer');
+                const submitBtn = document.getElementById('submitBtn');
+                
+                if (productData.length === 0) {
+                    container.innerHTML = '<div class="text-center py-4 text-danger">目前尚無上架商品。</div>';
+                    return;
+                }
+                container.innerHTML = '';
+                
+                const categories = [...new Set(productData.map(p => p.category))];
+                categories.forEach(cat => {
+                    const catDiv = document.createElement('div');
+                    catDiv.className = 'category-title';
+                    catDiv.innerText = cat || "精選系列";
+                    container.appendChild(catDiv);
+                    
+                    const filtered = productData.filter(p => p.category === cat);
+                    filtered.forEach((prod, index) => {
+                        const prodId = `prod_${index}`;
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'product-item';
+                        itemDiv.innerHTML = `
+                            <div class="product-info">
+                                <div class="product-name">${prod.name}</div>
+                                <div class="product-price">NT$ ${prod.price}</div>
+                            </div>
+                            <div class="quantity-control">
+                                <div class="quantity-btn minus" onclick="changeQty('${prodId}', -1)">-</div>
+                                <input type="text" id="${prodId}" class="quantity-input" value="0" readonly data-name="${prod.name}" data-price="${prod.price}">
+                                <div class="quantity-btn plus" onclick="changeQty('${prodId}', 1)">+</div>
+                            </div>
+                        `;
+                        container.appendChild(itemDiv);
+                    });
+                });
+                submitBtn.disabled = false;
+                submitBtn.innerText = "確認送出點單";
+            } catch (err) { console.error(err); }
+        }
+
+        function changeQty(id, amount) {
+            const input = document.getElementById(id);
+            let current = parseInt(input.value) || 0;
+            current += amount; if (current < 0) current = 0;
+            input.value = current;
+            calculateTotal();
+        }
+
+        function calculateTotal() {
+            let total = 0;
+            document.querySelectorAll('.quantity-input').forEach(input => {
+                total += (parseInt(input.value) || 0) * (parseInt(input.getAttribute('data-price')) || 0);
+            });
+            document.getElementById('subtotalPrice').innerText = total;
+            document.getElementById('totalPrice').innerText = total;
+        }
+
+        let uID = "";
+        async function initLIFF() {
+            try {
+                // 💡 註記：購物車網頁也一樣能綁定同一個 LINE Login 的 LIFF 頻道
+                await liff.init({ liffId: "2009131497-Rq0Gbi7N" }); 
+                if (!liff.isLoggedIn()) { 
+                    liff.login(); 
+                } else {
+                    const profile = await liff.getProfile();
+                    uID = profile.userId;
+                    document.getElementById('userName').value = profile.displayName;
+                    await fetchShopProducts(); 
+                }
+            } catch (err) { await fetchShopProducts(); }
+        }
+        initLIFF();
+
+        document.getElementById('submitBtn').onclick = async function() {
+            const name = document.getElementById('userName').value;
+            const phone = document.getElementById('userPhone').value;
+            const totalAmt = document.getElementById('totalPrice').innerText;
+
+            if (!name || !phone) { alert('請填寫完整資訊'); return; }
+            if (parseInt(totalAmt) === 0) { alert('請至少選擇一項商品'); return; }
+            this.disabled = true;
+
+            let itemsArray = [];
+            document.querySelectorAll('.quantity-input').forEach(input => {
+                const qty = parseInt(input.value) || 0;
+                if (qty > 0) { itemsArray.push(`${input.getAttribute('data-name')} x ${qty}`); }
+            });
+            const formattedItemsList = itemsArray.join('\n');
+
+            try {
+                await fetch('https://script.google.com/macros/s/AKfycbw_EPUH4-FnKPxtLTZSh6mPh18ptD9pbEDH47tvWHcBIJ5v7Eaw99CHS7BSSMbDwvc/exec', {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify({
+                        formType: "shopOrder",
+                        userId: uID, userName: name, phone: phone,
+                        itemsList: formattedItemsList, totalPrice: totalAmt
+                    })
+                });
+                alert('商品點單成功！\n\n請點擊〔確定〕返回 LINE 對話視窗');
+                liff.closeWindow();
+            } catch (e) { alert(e); this.disabled = false; }
+        };
+    </script>
+</body>
+</html>
