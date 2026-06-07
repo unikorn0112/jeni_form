@@ -187,19 +187,21 @@
 
         let uID = "";
         
+        // 🎯 【合規修正】將原本拋錯的 liff.login() 拔除，改用 LINE 官方指定的 autoLoginEnabled 標準流
         async function initLIFF() {
             try {
-                await liff.init({ liffId: "2009131497-Rq0Gbi7N" }); 
-                if (!liff.isLoggedIn()) { 
-                    liff.login(); 
-                } else {
+                await liff.init({ 
+                    liffId: "2009131497-Rq0Gbi7N",
+                    autoLoginEnabled: true 
+                }); 
+                
+                if (liff.isLoggedIn()) {
                     const profile = await liff.getProfile();
                     uID = profile.userId; 
-                    
                     document.getElementById('userName').value = profile.displayName;
-                    
-                    await fetchShopProducts(); 
                 }
+                
+                await fetchShopProducts(); 
             } catch (err) { 
                 console.error("LIFF 初始化致命錯誤:", err);
                 await fetchShopProducts(); 
