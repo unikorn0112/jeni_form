@@ -1,225 +1,331 @@
 <!DOCTYPE html>
+
 <html>
+
 <head>
+
     <meta charset="UTF-8">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>漢草植物精華商品</title>
+
+    <title>全齡溫養課程報名</title>
+
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+
     <style>
+
         body { background-color: #f8f9fa; padding: 20px; font-family: "Microsoft JhengHei", sans-serif; }
+
         .container { max-width: 500px; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin: auto; }
-        .btn-success { background-color: #00b900; border: none; font-weight: bold; margin-top: 20px; }
+
+        .btn-primary { background-color: #00b900; border: none; font-weight: bold; margin-top: 20px; }
+
         label { font-weight: bold; margin-top: 15px; }
-        
-        /* 【新增註記】為呈現如同影片中的購物車分類與加減按鈕，新增以下專屬 CSS 樣式 */
-        .category-title { background-color: #f1e7de; color: #704e30; padding: 5px 10px; font-weight: bold; border-radius: 5px; margin-top: 20px; margin-bottom: 10px; }
-        .product-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed #eee; }
-        .product-info { flex-grow: 1; }
-        .product-name { font-weight: 500; color: #333; }
-        .product-price { color: #e4393c; font-weight: bold; font-size: 0.9em; }
-        .quantity-control { display: flex; align-items: center; }
-        .quantity-btn { width: 30px; height: 30px; border: 1px solid #ccc; background: #fff; border-radius: 5px; font-weight: bold; text-align: center; line-height: 28px; cursor: pointer; user-select: none; }
-        .quantity-btn:active { background: #eee; }
-        .quantity-input { width: 45px; text-align: center; border: none; font-weight: bold; font-size: 1.1em; background: transparent; }
-        .summary-box { background: #fff8f8; padding: 15px; border-radius: 8px; border: 1px solid #ffe3e3; margin-top: 20px; }
-        .summary-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
-        .total-price { color: #e4393c; font-weight: bold; font-size: 1.3em; }
+
+        .name-hint { font-size: 0.8em; color: #ff4d4d; font-weight: normal; }
+
     </style>
+
 </head>
+
 <body>
+
     <div class="container">
-        <h4 class="text-center mb-4" style="color: #5c3d24; font-weight: bold;">漢草植物精華點單</h4>
+
+        <h3 class="text-center mb-4">全齡溫養課程報名</h3>
+
         
+
         <div class="form-group">
-            <label>訂購人姓名</label>
+
+            <label>姓名 <span class="name-hint">(請填寫正確大名，方便核對)</span></label>
+
             <input type="text" id="userName" class="form-control" placeholder="請輸入姓名">
+
         </div>
+
         
+
         <div class="form-group">
-            <label>聯絡電話</label>
+
+            <label>電話</label>
+
             <input type="tel" id="userPhone" class="form-control" placeholder="請輸入聯絡電話">
+
         </div>
 
-        <div id="shopContainer">
-            <div class="text-center py-4 text-muted">正在為您載入最新商品項目...</div>
+
+
+        <div class="form-group">
+
+            <label>報名課程</label>
+
+            <select id="courseType" class="form-control">
+
+                <option value="">載入課程中...</option>
+
+            </select>
+
         </div>
 
-        <div class="summary-box">
-            <div class="summary-row">
-                <span>商品小計：</span>
-                <span>NT$ <span id="subtotalPrice">0</span></span>
-            </div>
-            <div class="summary-row">
-                <span>配送運費：</span>
-                <span style="color: #28a745;">免運費</span>
-            </div>
-            <hr style="margin: 10px 0;">
-            <div class="summary-row font-weight-bold">
-                <span>總計金額：</span>
-                <span class="total-price">NT$ <span id="totalPrice">0</span></span>
-            </div>
+
+
+        <div class="form-group">
+
+            <label>選擇場次</label>
+
+            <select id="courseDate" class="form-control">
+
+                <option value="">請先選擇課程</option>
+
+            </select>
+
         </div>
+
+
 
         <input type="hidden" id="payMethod" value="轉帳匯款">
-        <button id="submitBtn" class="btn btn-success btn-block" disabled>正在初始化商城...</button>
+
+
+
+        <button id="submitBtn" class="btn btn-primary btn-block" disabled>正在初始化系統...</button>
+
     </div>
 
+
+
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
     <script>
-        let productData = []; 
-        
-        // 【新增註記】將請求網址後面加上 `?type=shop` 參數，通知雙核心 GAS 切換為商品撈取邏輯
-        const gasUrl = 'https://script.google.com/macros/s/AKfycbw_EPUH4-FnKPxtLTZSh6mPh18ptD9pbEDH47tvWHcBIJ5v7Eaw99CHS7BSSMbDwvc/exec?type=shop';
 
-        // 【新增註記】專屬新功能：異步去 GAS 抓回上架商品，並自動按照「商品分類」分組渲染成加減按鈕介面
-        async function fetchShopProducts() {
+        // 【修改註記】刪除原本寫死的 dateMap，改為全域動態變數接收 GAS 資料
+
+        let allActiveEvents = []; 
+
+        const gasUrl = 'https://script.google.com/macros/s/AKfycbw_EPUH4-FnKPxtLTZSh6mPh18ptD9pbEDH47tvWHcBIJ5v7Eaw99CHS7BSSMbDwvc/exec';
+
+
+
+        // 【修改註記】重構核心功能：網頁一開啟就去 GAS 撈取最新場次資料並渲染
+
+        async function fetchActiveEvents() {
+
             try {
+
                 const response = await fetch(gasUrl);
-                productData = await response.json();
+
+                const data = await response.json();
+
+                allActiveEvents = data; // 存下所有目前狀態為「上架」的 { course, date } 清單
+
                 
-                const container = document.getElementById('shopContainer');
+
+                const selectCourseEl = document.getElementById('courseType');
+
+                const selectDateEl = document.getElementById('courseDate');
+
                 const submitBtn = document.getElementById('submitBtn');
-                
-                if (productData.length === 0) {
-                    container.innerHTML = '<div class="text-center py-4 text-danger">目前尚無上架商品，請至後台新增。</div>';
-                    return;
-                }
-                
-                container.innerHTML = ''; // 清空加載文字
-                
-                // 智慧分組：提取不重複的分類名稱
-                const categories = [...new Set(productData.map(p => p.category))];
-                
-                categories.forEach(cat => {
-                    // 生成分類小標題
-                    const catDiv = document.createElement('div');
-                    catDiv.className = 'category-title';
-                    catDiv.innerText = cat || "未分類系列";
-                    container.appendChild(catDiv);
+
+
+
+                if (selectCourseEl && selectDateEl) {
+
+                    // 1. 提取所有不重複的「課程名稱」填入選單
+
+                    selectCourseEl.innerHTML = '<option value="">請選擇報名課程</option>';
+
+                    const uniqueCourses = [...new Set(allActiveEvents.map(e => e.course))];
+
                     
-                    // 生成該分類下的所有商品列與數量增減器
-                    const filtered = productData.filter(p => p.category === cat);
-                    filtered.forEach((prod, index) => {
-                        const prodId = `prod_${cat}_${index}`;
-                        const itemDiv = document.createElement('div');
-                        itemDiv.className = 'product-item';
-                        itemDiv.innerHTML = `
-                            <div class="product-info">
-                                <div class="product-name">${prod.name}</div>
-                                <div class="product-price">NT$ ${prod.price}</div>
-                            </div>
-                            <div class="quantity-control">
-                                <div class="quantity-btn minus" onclick="changeQty('${prodId}', -1)">-</div>
-                                <input type="text" id="${prodId}" class="quantity-input" value="0" readonly data-name="${prod.name}" data-price="${prod.price}">
-                                <div class="quantity-btn plus" onclick="changeQty('${prodId}', 1)">+</div>
-                            </div>
-                        `;
-                        container.appendChild(itemDiv);
+
+                    uniqueCourses.forEach(course => {
+
+                        let opt = document.createElement('option');
+
+                        opt.value = course;
+
+                        opt.innerHTML = course;
+
+                        selectCourseEl.appendChild(opt);
+
                     });
-                });
-                
-                submitBtn.disabled = false;
-                submitBtn.innerText = "確認送出點單";
-                
-            } catch (err) {
-                console.error("商城載入失敗:", err);
-                document.getElementById('shopContainer').innerHTML = '<div class="text-center py-4 text-danger">資料載入失敗，請重新整理。</div>';
-            }
-        }
 
-        // 【新增註記】專屬新功能：控制商品數量的加減按鈕，並在點擊時觸發總金額重新計算
-        function changeQty(id, amount) {
-            const input = document.getElementById(id);
-            let current = parseInt(input.value) || 0;
-            current += amount;
-            if (current < 0) current = 0; // 防呆限制：數量不能低於 0
-            input.value = current;
-            calculateTotal();
-        }
 
-        // 【新增註記】專屬新功能：即時巡檢畫面所有數量大於 0 的項目，即時加總總金額
-        function calculateTotal() {
-            let total = 0;
-            const inputs = document.querySelectorAll('.quantity-input');
-            inputs.forEach(input => {
-                const qty = parseInt(input.value) || 0;
-                const price = parseInt(input.getAttribute('data-price')) || 0;
-                total += qty * price;
-            });
-            document.getElementById('subtotalPrice').innerText = total;
-            document.getElementById('totalPrice').innerText = total;
-        }
 
-        // 沿用原本的 LIFF 初始化架構
-        let uID = "";
-        async function initLIFF() {
-            try {
-                await liff.init({ liffId: "2009131497-Rq0Gbi7N" }); 
-                if (!liff.isLoggedIn()) { 
-                    liff.login(); 
-                } else {
-                    const profile = await liff.getProfile();
-                    uID = profile.userId;
-                    document.getElementById('userName').value = profile.displayName;
-                    // 【修改註記】LIFF 載入成功後，改為去呼叫抓取最新「商品清單」的功能
-                    await fetchShopProducts(); 
+                    // 2. 綁定二級聯動監聽：當使用者切換課程時，動態過濾對應的場次時間
+
+                    selectCourseEl.onchange = function() {
+
+                        selectDateEl.innerHTML = '<option value="">請選擇場次時間</option>';
+
+                        const selectedCourse = this.value;
+
+                        
+
+                        // 過濾出屬於該選定課程的日期
+
+                        const filteredDates = allActiveEvents.filter(e => e.course === selectedCourse);
+
+                        filteredDates.forEach(ev => {
+
+                            let opt = document.createElement('option');
+
+                            opt.value = ev.date;
+
+                            opt.innerHTML = ev.date;
+
+                            selectDateEl.appendChild(opt);
+
+                        });
+
+                    };
+
+
+
+                    // 啟用提交按鈕
+
+                    submitBtn.disabled = false;
+
+                    submitBtn.innerText = "確認提交";
+
                 }
-            } catch (err) { 
-                await fetchShopProducts(); 
+
+            } catch (err) {
+
+                console.error("動態載入場次失敗:", err);
+
+                alert("讀取最新場次資料失敗，請重新整理頁面。");
+
             }
+
         }
+
+
+
+        let uID = "";
+
+        async function initLIFF() {
+
+            try {
+
+                await liff.init({ liffId: "2009131497-Rq0Gbi7N" }); 
+
+                if (!liff.isLoggedIn()) { 
+
+                    liff.login(); 
+
+                } else {
+
+                    const profile = await liff.getProfile();
+
+                    uID = profile.userId;
+
+                    document.getElementById('userName').value = profile.displayName;
+
+                    // 【修改註記】LIFF 載入成功後，開始抓取最新活動清單
+
+                    await fetchActiveEvents(); 
+
+                }
+
+            } catch (err) { 
+
+                // 網頁獨立瀏覽時的降級處理
+
+                await fetchActiveEvents(); 
+
+            }
+
+        }
+
         initLIFF();
 
-        // 🚀 核心改造：點擊送出點單按鈕時的數據打包邏輯
-        document.getElementById('submitBtn').onclick = async function() {
-            const name = document.getElementById('userName').value;
-            const phone = document.getElementById('userPhone').value;
-            const totalAmt = document.getElementById('totalPrice').innerText;
 
-            if (!name || !phone) { alert('請填寫完整姓名與電話資訊'); return; }
-            if (parseInt(totalAmt) === 0) { alert('您的購物車還是空的，請至少選擇一項商品。'); return; }
-            
+
+        document.getElementById('submitBtn').onclick = async function() {
+
+            const name = document.getElementById('userName').value;
+
+            const phone = document.getElementById('userPhone').value;
+
+            const method = document.getElementById('payMethod').value;
+
+            const courseName = document.getElementById('courseType').value; // 取得選中的完整課程名稱
+
+            const date = document.getElementById('courseDate').value;
+
+
+
+            if (!name || !phone || !courseName || !date) { alert('請填寫完整資訊並選擇場次'); return; }
+
             this.disabled = true;
 
-            // 【新增註記】核心算法：篩選出所有數量 > 0 的品項，用 `\n` 換行符號打包串接成一筆標準的出貨明細
-            let itemsArray = [];
-            const inputs = document.querySelectorAll('.quantity-input');
-            inputs.forEach(input => {
-                const qty = parseInt(input.value) || 0;
-                if (qty > 0) {
-                    const pName = input.getAttribute('data-name');
-                    itemsArray.push(`${pName} x ${qty}`); 
-                }
-            });
-            const formattedItemsList = itemsArray.join('\n'); // 把陣列轉成多行文字
+
+
+            // 判斷金額（供原本 GAS 紀錄價格與統計使用）
+
+            const price = courseName.includes("500") ? "500" : "2980";
+
+            // 格式化報名項目名稱（保持你原本傳進試算表的「體驗班(時間)」或「精修班(時間)」格式）
+
+            const activityType = courseName.includes("體驗班") ? "體驗班" : "精修班";
+
+
 
             try {
-                // 【修改註記】發送 POST 請求給雙核心 GAS，指定 formType 為 "shopOrder"，並傳入處理好的換行明細
-                await fetch('https://script.google.com/macros/s/AKfycbw_EPUH4-FnKPxtLTZSh6mPh18ptD9pbEDH47tvWHcBIJ5v7Eaw99CHS7BSSMbDwvc/exec', {
+
+                await fetch(gasUrl, {
+
                     method: 'POST',
+
                     mode: 'no-cors',
+
                     body: JSON.stringify({
-                        formType: "shopOrder", 
+
                         userId: uID, 
+
                         userName: name, 
+
                         phone: phone,
-                        itemsList: formattedItemsList, // 包裹換行的商品清單傳給試算表一格儲存
-                        totalPrice: totalAmt
+
+                        payMethod: method, 
+
+                        activity: activityType + "(" + date + ")", 
+
+                        price: price
+
                     })
+
                 });
+
                 
-                alert('商品點單成功！\n\n感謝您的訂購\n\n請點擊〔確定〕返回 LINE 對話視窗');
+
+                alert('報名成功\n\n感謝您的報名\n\n請點擊〔確定〕返回對話視窗');
+
                 
+
                 if (liff.isInClient()) {
+
                     liff.closeWindow();
+
                 } else {
+
                     window.close();
+
                 }
+
             } catch (e) {
-                alert('商城點單系統發生錯誤：' + e);
+
+                alert('系統錯誤：' + e);
+
                 this.disabled = false;
+
             }
+
         };
+
     </script>
+
 </body>
+
 </html>
