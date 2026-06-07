@@ -202,12 +202,6 @@
             } catch (err) { 
                 console.error("LIFF 初始化失敗:", err);
 
-                // ⚠️ 【偵錯標記 A】
-                // LIFF init 失敗時會跑到這裡，uID 此時是空字串 ""
-                // 這是 LINE ID 收不到的最常見原因之一
-                // 正式上線前請把下面這行 alert 刪掉
-                alert("⚠️ LIFF 初始化失敗！\nLINE ID 無法取得\n錯誤：" + err);
-
                 // 降級保護：即使 LIFF 失敗也讓商品載入，但 userId 會是空的
                 await fetchShopProducts(); 
             }
@@ -215,13 +209,6 @@
         initLIFF();
 
         document.getElementById('submitBtn').onclick = async function() {
-
-            // ✅ 【偵錯標記 B】
-            // 按下送出時，這個 alert 會告訴你 LINE ID 有沒有被抓到
-            // 如果顯示「LINE ID = 」後面是空的 → 問題在 LIFF 沒登入
-            // 如果顯示「LINE ID = U開頭一串字」→ LINE ID 正常，問題在 GAS
-            // 正式上線前請把下面這行 alert 刪掉
-            alert("【偵錯】LINE ID = " + (uID || "（空的！LIFF 沒拿到）"));
 
             const name = document.getElementById('userName').value;
             const phone = document.getElementById('userPhone').value;
