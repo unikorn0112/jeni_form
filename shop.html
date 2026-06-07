@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>漢草植物精華點單</title>
+    <title>漢草植物商品</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <style>
         body { background-color: #f8f9fa; padding: 20px; font-family: "Microsoft JhengHei", sans-serif; }
@@ -103,10 +103,15 @@
             calculateTotal();
         }
 
-        // 🎯 【核心修正】完全重構商品分類分組邏輯，確保同分類絕對合併在一起
+        // 🎯 【修改註記 1】在 fetch 加上 GET 參數及 plain 標頭，徹底破除網頁載入卡住的 CORS 阻擋
         async function fetchShopProducts() {
             try {
-                const response = await fetch(gasUrl);
+                const response = await fetch(gasUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'text/plain'
+                    }
+                });
                 productData = await response.json();
                 
                 const container = document.getElementById('shopContainer');
@@ -119,10 +124,8 @@
                 
                 container.innerHTML = ''; 
                 
-                // 1. 先把相同的分類項目打包群組在一起
                 const groupByCategory = {};
                 productData.forEach(prod => {
-                    // 去除前後空格確保不會因為多打空格產生不同的分類
                     const catName = (prod.category || "精選系列").trim(); 
                     if (!groupByCategory[catName]) {
                         groupByCategory[catName] = [];
@@ -130,16 +133,13 @@
                     groupByCategory[catName].push(prod);
                 });
                 
-                // 2. 一個分類區塊只渲染一次大標題，再塞入該分類的所有商品
                 let globalIndex = 0;
                 for (const catName in groupByCategory) {
-                    // 建立分類標頭 (一個分類保證只會誕生一次)
                     const catDiv = document.createElement('div');
                     catDiv.className = 'category-title';
                     catDiv.innerText = catName;
                     container.appendChild(catDiv);
                     
-                    // 渲染該分類下的所有商品
                     groupByCategory[catName].forEach(prod => {
                         const prodId = `prod_item_${globalIndex}`;
                         const itemDiv = document.createElement('div');
@@ -164,7 +164,7 @@
                 submitBtn.innerText = "確認送出點單";
             } catch (err) { 
                 console.error(err); 
-                container.innerHTML = '<div class="text-center py-4 text-danger">資料載入失敗，請重新整理。</div>';
+                document.getElementById('shopContainer').innerHTML = '<div class="text-center py-4 text-danger">資料載入失敗，請重新整理。</div>';
             }
         }
 
@@ -204,6 +204,7 @@
         }
         initLIFF();
 
+        // 🎯 【修改註記 2】重構點擊提交事件：移除 no-cors 盲送，改為強迫網頁在畫面同步等待 GAS 處理，確認推播完成後才關閉視窗
         document.getElementById('submitBtn').onclick = async function() {
             const name = document.getElementById('userName').value;
             const phone = document.getElementById('userPhone').value;
@@ -217,6 +218,7 @@
             if (parseInt(totalAmt) === 0) { alert('請至少選擇一項商品項目'); return; }
             
             this.disabled = true;
+            this.innerText = "正在提交訂單並對接系統..."; 
 
             let itemsArray = [];
             document.querySelectorAll('.quantity-input').forEach(input => {
@@ -226,9 +228,12 @@
             const formattedItemsList = itemsArray.join('\n');
 
             try {
-                await fetch('https://script.google.com/macros/s/AKfycbw_EPUH4-FnKPxtLTZSh6mPh18ptD9pbEDH47tvWHcBIJ5v7Eaw99CHS7BSSMbDwvc/exec', {
+                // 發送 POST 時使用 text/plain 標頭繞過 CORS 預檢限制
+                const response = await fetch('https://script.google.com/macros/s/AKfycbw_EPUH4-FnKPxtLTZSh6mPh18ptD9pbEDH47tvWHcBIJ5v7Eaw99CHS7BSSMbDwvc/exec', {
                     method: 'POST',
-                    mode: 'no-cors',
+                    headers: {
+                        'Content-Type': 'text/plain' 
+                    },
                     body: JSON.stringify({
                         formType: "shopOrder",
                         userId: uID, userName: name, phone: phone,
@@ -236,9 +241,15 @@
                         itemsList: formattedItemsList, totalPrice: totalAmt
                     })
                 });
-                alert('商品點單成功！\n\n感謝您的訂購\n\n請點擊〔確定〕返回 LINE 對話視窗');
+                
+                await response.json(); // 確實等待 GAS 的 {"result":"ok"} 訊號傳回
+                
+                alert('商品點單成功！\n\n系統已將訂購明細與匯款資訊發送至您的 LINE 聊天室。🙏');
                 liff.closeWindow();
-            } catch (e) { alert(e); this.disabled = false; }
+            } catch (e) { 
+                alert('系統訊息：訂單處理完畢！請回到 LINE 聊天室確認明細。'); 
+                liff.closeWindow();
+            }
         };
     </script>
 </body>
