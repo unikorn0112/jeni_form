@@ -27,7 +27,7 @@
 </head>
 <body>
     <div class="container">
-        <h4 class="text-center mb-4" style="color: #5c3d24; font-weight: bold;">漢草植物精華點單</h4>
+        <h4 class="text-center mb-4" style="color: #5c3d24; font-weight: bold;">漢草植物商品</h4>
         
         <div class="form-group">
             <label>訂購人姓名</label>
@@ -103,15 +103,16 @@
             calculateTotal();
         }
 
-        // 🎯 【修改註記 1】在 fetch 加上 GET 參數及 plain 標頭，徹底破除網頁載入卡住的 CORS 阻擋
+        // =============================================================
+        // 🎯 【關鍵修改區 1】重構商品撈取函式：
+        // 移除不相容的標頭設定，改用「動態時間戳記」串接在網址後方。
+        // 這能騙過 LINE 瀏覽器破除快取，同時完美相容 Google 的安全性導向！
+        // =============================================================
         async function fetchShopProducts() {
             try {
-                const response = await fetch(gasUrl, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'text/plain'
-                    }
-                });
+                // 💡 核心算法：動態產生一串微秒時間戳，讓每次請求都是全宇宙唯一的網址，破除快取且不卡死
+                const cacheBustUrl = gasUrl + '&_=' + new Date().getTime();
+                const response = await fetch(cacheBustUrl); 
                 productData = await response.json();
                 
                 const container = document.getElementById('shopContainer');
@@ -204,7 +205,6 @@
         }
         initLIFF();
 
-        // 🎯 【修改註記 2】重構點擊提交事件：移除 no-cors 盲送，改為強迫網頁在畫面同步等待 GAS 處理，確認推播完成後才關閉視窗
         document.getElementById('submitBtn').onclick = async function() {
             const name = document.getElementById('userName').value;
             const phone = document.getElementById('userPhone').value;
@@ -228,7 +228,6 @@
             const formattedItemsList = itemsArray.join('\n');
 
             try {
-                // 發送 POST 時使用 text/plain 標頭繞過 CORS 預檢限制
                 const response = await fetch('https://script.google.com/macros/s/AKfycbw_EPUH4-FnKPxtLTZSh6mPh18ptD9pbEDH47tvWHcBIJ5v7Eaw99CHS7BSSMbDwvc/exec', {
                     method: 'POST',
                     headers: {
@@ -242,7 +241,7 @@
                     })
                 });
                 
-                await response.json(); // 確實等待 GAS 的 {"result":"ok"} 訊號傳回
+                await response.json(); 
                 
                 alert('商品點單成功！\n\n系統已將訂購明細與匯款資訊發送至您的 LINE 聊天室。🙏');
                 liff.closeWindow();
