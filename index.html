@@ -29,39 +29,75 @@
 
         <div class="form-group">
             <label>報名課程</label>
-            <select id="courseType" class="form-control" onchange="updateDates()">
-                <option value="500">500元｜頭眼頸 DIY體驗班</option>
-                <option value="2980">2980元｜頭眼頸 日常精修班</option>
+            <select id="courseType" class="form-control">
+                <option value="">載入課程中...</option>
             </select>
         </div>
 
         <div class="form-group">
             <label>選擇場次</label>
-            <select id="courseDate" class="form-control"></select>
+            <select id="courseDate" class="form-control">
+                <option value="">請先選擇課程</option>
+            </select>
         </div>
 
         <input type="hidden" id="payMethod" value="轉帳匯款">
 
-        <button id="submitBtn" class="btn btn-primary btn-block">確認提交</button>
+        <button id="submitBtn" class="btn btn-primary btn-block" disabled>正在初始化系統...</button>
     </div>
 
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script>
-        const dateMap = {
-            "500": ["3/3 (二) 19:30 ~ 21:30", "3/21 (六) 10:00 ~ 12:00"],
-            "2980": ["3/22 (日) 19:30 ~ 21:30"]
-        };
+        // 【修改註記】刪除原本寫死的 dateMap，改為全域動態變數接收 GAS 資料
+        let allActiveEvents = []; 
+        const gasUrl = 'https://script.google.com/macros/s/AKfycbw_EPUH4-FnKPxtLTZSh6mPh18ptD9pbEDH47tvWHcBIJ5v7Eaw99CHS7BSSMbDwvc/exec';
 
-        function updateDates() {
-            const price = document.getElementById('courseType').value;
-            const dateSelect = document.getElementById('courseDate');
-            dateSelect.innerHTML = ''; 
-            dateMap[price].forEach(date => {
-                let opt = document.createElement('option');
-                opt.value = date; 
-                opt.innerHTML = date;
-                dateSelect.appendChild(opt);
-            });
+        // 【修改註記】重構核心功能：網頁一開啟就去 GAS 撈取最新場次資料並渲染
+        async function fetchActiveEvents() {
+            try {
+                const response = await fetch(gasUrl);
+                const data = await response.json();
+                allActiveEvents = data; // 存下所有目前狀態為「上架」的 { course, date } 清單
+                
+                const selectCourseEl = document.getElementById('courseType');
+                const selectDateEl = document.getElementById('courseDate');
+                const submitBtn = document.getElementById('submitBtn');
+
+                if (selectCourseEl && selectDateEl) {
+                    // 1. 提取所有不重複的「課程名稱」填入選單
+                    selectCourseEl.innerHTML = '<option value="">請選擇報名課程</option>';
+                    const uniqueCourses = [...new Set(allActiveEvents.map(e => e.course))];
+                    
+                    uniqueCourses.forEach(course => {
+                        let opt = document.createElement('option');
+                        opt.value = course;
+                        opt.innerHTML = course;
+                        selectCourseEl.appendChild(opt);
+                    });
+
+                    // 2. 綁定二級聯動監聽：當使用者切換課程時，動態過濾對應的場次時間
+                    selectCourseEl.onchange = function() {
+                        selectDateEl.innerHTML = '<option value="">請選擇場次時間</option>';
+                        const selectedCourse = this.value;
+                        
+                        // 過濾出屬於該選定課程的日期
+                        const filteredDates = allActiveEvents.filter(e => e.course === selectedCourse);
+                        filteredDates.forEach(ev => {
+                            let opt = document.createElement('option');
+                            opt.value = ev.date;
+                            opt.innerHTML = ev.date;
+                            selectDateEl.appendChild(opt);
+                        });
+                    };
+
+                    // 啟用提交按鈕
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = "確認提交";
+                }
+            } catch (err) {
+                console.error("動態載入場次失敗:", err);
+                alert("讀取最新場次資料失敗，請重新整理頁面。");
+            }
         }
 
         let uID = "";
@@ -74,10 +110,12 @@
                     const profile = await liff.getProfile();
                     uID = profile.userId;
                     document.getElementById('userName').value = profile.displayName;
-                    updateDates(); 
+                    // 【修改註記】LIFF 載入成功後，開始抓取最新活動清單
+                    await fetchActiveEvents(); 
                 }
             } catch (err) { 
-                updateDates(); 
+                // 網頁獨立瀏覽時的降級處理
+                await fetchActiveEvents(); 
             }
         }
         initLIFF();
@@ -85,15 +123,20 @@
         document.getElementById('submitBtn').onclick = async function() {
             const name = document.getElementById('userName').value;
             const phone = document.getElementById('userPhone').value;
-            const method = document.getElementById('payMethod').value; // 這裡會固定取得 "轉帳匯款"
-            const price = document.getElementById('courseType').value;
+            const method = document.getElementById('payMethod').value;
+            const courseName = document.getElementById('courseType').value; // 取得選中的完整課程名稱
             const date = document.getElementById('courseDate').value;
 
-            if (!name || !phone) { alert('請填寫完整資訊'); return; }
+            if (!name || !phone || !courseName || !date) { alert('請填寫完整資訊並選擇場次'); return; }
             this.disabled = true;
 
+            // 判斷金額（供原本 GAS 紀錄價格與統計使用）
+            const price = courseName.includes("500") ? "500" : "2980";
+            // 格式化報名項目名稱（保持你原本傳進試算表的「體驗班(時間)」或「精修班(時間)」格式）
+            const activityType = courseName.includes("體驗班") ? "體驗班" : "精修班";
+
             try {
-                await fetch('https://script.google.com/macros/s/AKfycbw_EPUH4-FnKPxtLTZSh6mPh18ptD9pbEDH47tvWHcBIJ5v7Eaw99CHS7BSSMbDwvc/exec', {
+                await fetch(gasUrl, {
                     method: 'POST',
                     mode: 'no-cors',
                     body: JSON.stringify({
@@ -101,12 +144,10 @@
                         userName: name, 
                         phone: phone,
                         payMethod: method, 
-                        activity: (price === "500" ? "體驗班" : "精修班") + "(" + date + ")", 
+                        activity: activityType + "(" + date + ")", 
                         price: price
                     })
                 });
-
-                // 註記：刪除了原本判斷 LINE Pay 並發送關鍵字的程式碼 (liff.sendMessages)
                 
                 alert('報名成功\n\n感謝您的報名\n\n請點擊〔確定〕返回對話視窗');
                 
