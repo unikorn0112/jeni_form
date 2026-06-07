@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>漢草植物精華點單</title>
+    <title>漢草商品購物</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <style>
         body { background-color: #f8f9fa; padding: 20px; font-family: "Microsoft JhengHei", sans-serif; }
@@ -22,6 +22,8 @@
         .summary-box { background: #fff8f8; padding: 15px; border-radius: 8px; border: 1px solid #ffe3e3; margin-top: 20px; }
         .summary-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
         .total-price { color: #e4393c; font-weight: bold; font-size: 1.3em; }
+        /* 💡 新增收件人動畫流暢感 */
+        .shipping-detail-block { display: none; background: #fdfbf7; padding: 15px; border-radius: 8px; border: 1px solid #f3ebe1; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -38,6 +40,25 @@
             <input type="tel" id="userPhone" class="form-control" placeholder="請輸入聯絡電話">
         </div>
 
+        <div class="form-group">
+            <label>配送方式</label>
+            <select id="shippingMethod" class="form-control" onchange="toggleShippingFields()">
+                <option value="自取">自取 (免運費)</option>
+                <option value="宅配到府">宅配到府 (運費 +$150)</option>
+            </select>
+        </div>
+
+        <div id="shippingDetailBlock" class="shipping-detail-block">
+            <div class="form-group style='margin-top:0;'">
+                <label style="margin-top:0;">收件人姓名</label>
+                <input type="text" id="shippingName" class="form-control" placeholder="請輸入收件人姓名">
+            </div>
+            <div class="form-group">
+                <label>收件地址</label>
+                <input type="text" id="shippingAddress" class="form-control" placeholder="請輸入完整的收件地址">
+            </div>
+        </div>
+
         <div id="shopContainer">
             <div class="text-center py-4 text-muted">正在為您載入最新商品項目...</div>
         </div>
@@ -49,7 +70,7 @@
             </div>
             <div class="summary-row">
                 <span>配送運費：</span>
-                <span style="color: #28a745;">免運費</span>
+                <span>NT$ <span id="shippingFeeText">0</span></span>
             </div>
             <hr style="margin: 10px 0;">
             <div class="summary-row font-weight-bold">
@@ -66,6 +87,21 @@
     <script>
         let productData = []; 
         const gasUrl = 'https://script.google.com/macros/s/AKfycbw_EPUH4-FnKPxtLTZSh6mPh18ptD9pbEDH47tvWHcBIJ5v7Eaw99CHS7BSSMbDwvc/exec?type=shop';
+
+        // 💡 核心聯動控制：切換自取/宅配顯示與運費計算
+        function toggleShippingFields() {
+            const method = document.getElementById('shippingMethod').value;
+            const block = document.getElementById('shippingDetailBlock');
+            
+            if (method === "宅配到府") {
+                block.style.display = 'block';
+            } else {
+                block.style.display = 'none';
+                document.getElementById('shippingName').value = '';
+                document.getElementById('shippingAddress').value = '';
+            }
+            calculateTotal(); // 重新計算含運費的總金額
+        }
 
         async function fetchShopProducts() {
             try {
@@ -98,9 +134,9 @@
                                 <div class="product-price">NT$ ${prod.price}</div>
                             </div>
                             <div class="quantity-control">
-                                <div class="quantity-btn minus" onclick="changeQty('${prodId}', -1)">-</div>
+                                <div class="quantity-btn" onclick="changeQty('${prodId}', -1)">-</div>
                                 <input type="text" id="${prodId}" class="quantity-input" value="0" readonly data-name="${prod.name}" data-price="${prod.price}">
-                                <div class="quantity-btn plus" onclick="changeQty('${prodId}', 1)">+</div>
+                                <div class="quantity-btn" onclick="changeQty('${prodId}', 1)">+</div>
                             </div>
                         `;
                         container.appendChild(itemDiv);
@@ -119,23 +155,27 @@
             calculateTotal();
         }
 
+        // 💡 智慧總計：自動把商品小計加上動態運費 (+150)
         function calculateTotal() {
-            let total = 0;
+            let subtotal = 0;
             document.querySelectorAll('.quantity-input').forEach(input => {
-                total += (parseInt(input.value) || 0) * (parseInt(input.getAttribute('data-price')) || 0);
+                subtotal += (parseInt(input.value) || 0) * (parseInt(input.getAttribute('data-price')) || 0);
             });
-            document.getElementById('subtotalPrice').innerText = total;
-            document.getElementById('totalPrice').innerText = total;
+            
+            const shippingMethod = document.getElementById('shippingMethod').value;
+            // 只有選宅配且購物車不為空時才外加 150 運費
+            const shippingFee = (shippingMethod === "宅配到府" && subtotal > 0) ? 150 : 0;
+            
+            document.getElementById('subtotalPrice').innerText = subtotal;
+            document.getElementById('shippingFeeText').innerText = shippingFee;
+            document.getElementById('totalPrice').innerText = subtotal + shippingFee;
         }
 
         let uID = "";
         async function initLIFF() {
             try {
-                // 💡 註記：購物車網頁也一樣能綁定同一個 LINE Login 的 LIFF 頻道
                 await liff.init({ liffId: "2009131497-Rq0Gbi7N" }); 
-                if (!liff.isLoggedIn()) { 
-                    liff.login(); 
-                } else {
+                if (!liff.isLoggedIn()) { liff.login(); } else {
                     const profile = await liff.getProfile();
                     uID = profile.userId;
                     document.getElementById('userName').value = profile.displayName;
@@ -148,10 +188,19 @@
         document.getElementById('submitBtn').onclick = async function() {
             const name = document.getElementById('userName').value;
             const phone = document.getElementById('userPhone').value;
+            const shippingMethod = document.getElementById('shippingMethod').value;
+            const shippingName = document.getElementById('shippingName').value;
+            const shippingAddress = document.getElementById('shippingAddress').value;
             const totalAmt = document.getElementById('totalPrice').innerText;
 
-            if (!name || !phone) { alert('請填寫完整資訊'); return; }
-            if (parseInt(totalAmt) === 0) { alert('請至少選擇一項商品'); return; }
+            if (!name || !phone) { alert('請填寫完整訂購資訊'); return; }
+            
+            // 宅配時的防呆檢查
+            if (shippingMethod === "宅配到府") {
+                if (!shippingName || !shippingAddress) { alert('選擇宅配到府，請填寫收件人姓名與收件地址！'); return; }
+            }
+            if (parseInt(totalAmt) === 0) { alert('請至少選擇一項商品項目'); return; }
+            
             this.disabled = true;
 
             let itemsArray = [];
@@ -167,11 +216,17 @@
                     mode: 'no-cors',
                     body: JSON.stringify({
                         formType: "shopOrder",
-                        userId: uID, userName: name, phone: phone,
-                        itemsList: formattedItemsList, totalPrice: totalAmt
+                        userId: uID, 
+                        userName: name, 
+                        phone: phone,
+                        shippingMethod: shippingMethod,
+                        shippingName: shippingName,
+                        shippingAddress: shippingAddress,
+                        itemsList: formattedItemsList, 
+                        totalPrice: totalAmt
                     })
                 });
-                alert('商品點單成功！\n\n請點擊〔確定〕返回 LINE 對話視窗');
+                alert('商品點單成功！\n\n感謝您的訂購\n\n請點擊〔確定〕返回 LINE 對話視窗');
                 liff.closeWindow();
             } catch (e) { alert(e); this.disabled = false; }
         };
