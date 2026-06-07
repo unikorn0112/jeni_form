@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>漢草商品購物</title>
+    <title>漢草植物精華點單</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <style>
         body { background-color: #f8f9fa; padding: 20px; font-family: "Microsoft JhengHei", sans-serif; }
@@ -22,7 +22,6 @@
         .summary-box { background: #fff8f8; padding: 15px; border-radius: 8px; border: 1px solid #ffe3e3; margin-top: 20px; }
         .summary-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
         .total-price { color: #e4393c; font-weight: bold; font-size: 1.3em; }
-        /* 💡 新增收件人動畫流暢感 */
         .shipping-detail-block { display: none; background: #fdfbf7; padding: 15px; border-radius: 8px; border: 1px solid #f3ebe1; margin-top: 10px; }
     </style>
 </head>
@@ -40,6 +39,12 @@
             <input type="tel" id="userPhone" class="form-control" placeholder="請輸入聯絡電話">
         </div>
 
+        <div id="shopContainer">
+            <div class="text-center py-4 text-muted">正在為您載入最新商品項目...</div>
+        </div>
+
+        <hr style="margin-top: 30px;">
+
         <div class="form-group">
             <label>配送方式</label>
             <select id="shippingMethod" class="form-control" onchange="toggleShippingFields()">
@@ -49,7 +54,7 @@
         </div>
 
         <div id="shippingDetailBlock" class="shipping-detail-block">
-            <div class="form-group style='margin-top:0;'">
+            <div class="form-group" style="margin-top:0;">
                 <label style="margin-top:0;">收件人姓名</label>
                 <input type="text" id="shippingName" class="form-control" placeholder="請輸入收件人姓名">
             </div>
@@ -57,10 +62,6 @@
                 <label>收件地址</label>
                 <input type="text" id="shippingAddress" class="form-control" placeholder="請輸入完整的收件地址">
             </div>
-        </div>
-
-        <div id="shopContainer">
-            <div class="text-center py-4 text-muted">正在為您載入最新商品項目...</div>
         </div>
 
         <div class="summary-box">
@@ -88,7 +89,6 @@
         let productData = []; 
         const gasUrl = 'https://script.google.com/macros/s/AKfycbw_EPUH4-FnKPxtLTZSh6mPh18ptD9pbEDH47tvWHcBIJ5v7Eaw99CHS7BSSMbDwvc/exec?type=shop';
 
-        // 💡 核心聯動控制：切換自取/宅配顯示與運費計算
         function toggleShippingFields() {
             const method = document.getElementById('shippingMethod').value;
             const block = document.getElementById('shippingDetailBlock');
@@ -100,13 +100,15 @@
                 document.getElementById('shippingName').value = '';
                 document.getElementById('shippingAddress').value = '';
             }
-            calculateTotal(); // 重新計算含運費的總金額
+            calculateTotal();
         }
 
+        // 🎯 【核心修正】完全重構商品分類分組邏輯，確保同分類絕對合併在一起
         async function fetchShopProducts() {
             try {
                 const response = await fetch(gasUrl);
                 productData = await response.json();
+                
                 const container = document.getElementById('shopContainer');
                 const submitBtn = document.getElementById('submitBtn');
                 
@@ -114,18 +116,32 @@
                     container.innerHTML = '<div class="text-center py-4 text-danger">目前尚無上架商品。</div>';
                     return;
                 }
-                container.innerHTML = '';
                 
-                const categories = [...new Set(productData.map(p => p.category))];
-                categories.forEach(cat => {
+                container.innerHTML = ''; 
+                
+                // 1. 先把相同的分類項目打包群組在一起
+                const groupByCategory = {};
+                productData.forEach(prod => {
+                    // 去除前後空格確保不會因為多打空格產生不同的分類
+                    const catName = (prod.category || "精選系列").trim(); 
+                    if (!groupByCategory[catName]) {
+                        groupByCategory[catName] = [];
+                    }
+                    groupByCategory[catName].push(prod);
+                });
+                
+                // 2. 一個分類區塊只渲染一次大標題，再塞入該分類的所有商品
+                let globalIndex = 0;
+                for (const catName in groupByCategory) {
+                    // 建立分類標頭 (一個分類保證只會誕生一次)
                     const catDiv = document.createElement('div');
                     catDiv.className = 'category-title';
-                    catDiv.innerText = cat || "精選系列";
+                    catDiv.innerText = catName;
                     container.appendChild(catDiv);
                     
-                    const filtered = productData.filter(p => p.category === cat);
-                    filtered.forEach((prod, index) => {
-                        const prodId = `prod_${index}`;
+                    // 渲染該分類下的所有商品
+                    groupByCategory[catName].forEach(prod => {
+                        const prodId = `prod_item_${globalIndex}`;
                         const itemDiv = document.createElement('div');
                         itemDiv.className = 'product-item';
                         itemDiv.innerHTML = `
@@ -140,11 +156,16 @@
                             </div>
                         `;
                         container.appendChild(itemDiv);
+                        globalIndex++;
                     });
-                });
+                }
+                
                 submitBtn.disabled = false;
                 submitBtn.innerText = "確認送出點單";
-            } catch (err) { console.error(err); }
+            } catch (err) { 
+                console.error(err); 
+                container.innerHTML = '<div class="text-center py-4 text-danger">資料載入失敗，請重新整理。</div>';
+            }
         }
 
         function changeQty(id, amount) {
@@ -155,7 +176,6 @@
             calculateTotal();
         }
 
-        // 💡 智慧總計：自動把商品小計加上動態運費 (+150)
         function calculateTotal() {
             let subtotal = 0;
             document.querySelectorAll('.quantity-input').forEach(input => {
@@ -163,7 +183,6 @@
             });
             
             const shippingMethod = document.getElementById('shippingMethod').value;
-            // 只有選宅配且購物車不為空時才外加 150 運費
             const shippingFee = (shippingMethod === "宅配到府" && subtotal > 0) ? 150 : 0;
             
             document.getElementById('subtotalPrice').innerText = subtotal;
@@ -194,11 +213,7 @@
             const totalAmt = document.getElementById('totalPrice').innerText;
 
             if (!name || !phone) { alert('請填寫完整訂購資訊'); return; }
-            
-            // 宅配時的防呆檢查
-            if (shippingMethod === "宅配到府") {
-                if (!shippingName || !shippingAddress) { alert('選擇宅配到府，請填寫收件人姓名與收件地址！'); return; }
-            }
+            if (shippingMethod === "宅配到府" && (!shippingName || !shippingAddress)) { alert('選擇宅配到府，請填寫收件人姓名與收件地址！'); return; }
             if (parseInt(totalAmt) === 0) { alert('請至少選擇一項商品項目'); return; }
             
             this.disabled = true;
@@ -216,14 +231,9 @@
                     mode: 'no-cors',
                     body: JSON.stringify({
                         formType: "shopOrder",
-                        userId: uID, 
-                        userName: name, 
-                        phone: phone,
-                        shippingMethod: shippingMethod,
-                        shippingName: shippingName,
-                        shippingAddress: shippingAddress,
-                        itemsList: formattedItemsList, 
-                        totalPrice: totalAmt
+                        userId: uID, userName: name, phone: phone,
+                        shippingMethod: shippingMethod, shippingName: shippingName, shippingAddress: shippingAddress,
+                        itemsList: formattedItemsList, totalPrice: totalAmt
                     })
                 });
                 alert('商品點單成功！\n\n感謝您的訂購\n\n請點擊〔確定〕返回 LINE 對話視窗');
